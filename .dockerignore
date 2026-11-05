@@ -1,0 +1,3 @@
+# the build context only needs mongodb.repo
+*
+!mongodb.repo

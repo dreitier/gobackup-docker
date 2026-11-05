@@ -1,6 +1,8 @@
-[Mongodb]
+# MongoDB 8.0 repository; only mongodb-database-tools (mongodump) is installed from it.
+# Fedora has no own repository, the RHEL 9 packages work on current Fedora releases.
+[mongodb-org-8.0]
 name=MongoDB Repository
-baseurl=https://repo.mongodb.org/yum/redhat/9/mongodb-org/8.3/x86_64/
+baseurl=https://repo.mongodb.org/yum/redhat/9/mongodb-org/8.0/$basearch/
 gpgcheck=1
 enabled=1
-gpgkey=https://www.mongodb.org/static/pgp/server-8.0.asc
+gpgkey=https://pgp.mongodb.com/server-8.0.asc
