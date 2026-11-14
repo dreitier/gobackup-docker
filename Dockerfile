@@ -28,7 +28,7 @@ FROM fedora:44
 # major version of the PostgreSQL client tools; pg_dump must not be older than the server
 ARG PG_MAJOR=18
 
-LABEL org.opencontainers.image.source="https://github.com/dreitier/gobackup-with-interpolator-docker" \
+LABEL org.opencontainers.image.source="https://github.com/dreitier/gobackup-docker" \
       org.opencontainers.image.description="gobackup with database client tools (PostgreSQL, MySQL/MariaDB, MongoDB, Redis, SQLite)" \
       org.opencontainers.image.licenses="MIT"
 

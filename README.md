@@ -1,7 +1,7 @@
 # gobackup Docker image
 
-[![CI](https://github.com/dreitier/gobackup-with-interpolator-docker/actions/workflows/ci.yml/badge.svg)](https://github.com/dreitier/gobackup-with-interpolator-docker/actions/workflows/ci.yml)
-[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/dreitier/gobackup-with-interpolator-docker/badge)](https://scorecard.dev/viewer/?uri=github.com/dreitier/gobackup-with-interpolator-docker)
+[![CI](https://github.com/dreitier/gobackup-docker/actions/workflows/ci.yml/badge.svg)](https://github.com/dreitier/gobackup-docker/actions/workflows/ci.yml)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/dreitier/gobackup-docker/badge)](https://scorecard.dev/viewer/?uri=github.com/dreitier/gobackup-docker)
 
 [gobackup](https://github.com/gobackup/gobackup) dumps databases and archives folders, then compresses, encrypts and stores the backup in local folders, S3, SFTP, WebDAV and many other storages. The upstream project only publishes the binary; this image adds the client tools gobackup calls, so it can run in Docker or Kubernetes:
 
@@ -12,7 +12,7 @@
 
 The image is based on Fedora, runs as UID/GID `1000` and is published for `linux/amd64` and `linux/arm64`.
 
-> The repository name is historical: [interpolator](https://github.com/dreitier/interpolator) is no longer needed, gobackup expands `${VARS}` in its config itself.
+> This repository was called `gobackup-with-interpolator-docker` until 2026-11; [interpolator](https://github.com/dreitier/interpolator) is no longer needed, gobackup expands `${VARS}` in its config itself.
 
 ## Getting started
 Mount your gobackup configuration to `/etc/gobackup/gobackup.yml`. See the [gobackup documentation](https://gobackup.github.io/) for all options.
@@ -96,7 +96,7 @@ Images are signed keyless with [Sigstore](https://www.sigstore.dev/); the signat
 
 ```bash
 cosign verify dreitier/gobackup:1 \
-  --certificate-identity "https://github.com/dreitier/gobackup-with-interpolator-docker/.github/workflows/release.yml@refs/heads/main" \
+  --certificate-identity "https://github.com/dreitier/gobackup-docker/.github/workflows/release.yml@refs/heads/main" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
 
