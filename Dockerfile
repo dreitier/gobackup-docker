@@ -2,7 +2,7 @@
 
 # Downloads the official gobackup release binary (static, CGO disabled) and verifies its checksum.
 # Runs on the build platform; only the download depends on the target platform.
-FROM --platform=$BUILDPLATFORM alpine:3.23 AS gobackup
+FROM --platform=$BUILDPLATFORM alpine:3.24 AS gobackup
 
 ARG TARGETARCH
 # updated by .github/workflows/update-gobackup.yml, checksums from gobackup_<version>_checksums.txt of the release
