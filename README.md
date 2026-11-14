@@ -60,29 +60,41 @@ docker run -d --name gobackup \
   -v gobackup-state:/var/gobackup/.gobackup \
   -e ENCRYPTION_PASSWORD -e PG_PASSWORD -e S3_ACCESS_KEY_ID -e S3_SECRET_ACCESS_KEY \
   -p 2703:2703 \
-  dreitier/gobackup:1
+  dreitier/gobackup:2
 ```
+
+The examples use Docker Hub; replace `dreitier/gobackup` with `ghcr.io/dreitier/gobackup` to pull from the GitHub Container Registry.
 
 Single backup:
 
 ```bash
-docker run --rm -v "$PWD/gobackup.yml:/etc/gobackup/gobackup.yml:ro" -e ... dreitier/gobackup:1 perform
+docker run --rm -v "$PWD/gobackup.yml:/etc/gobackup/gobackup.yml:ro" -e ... dreitier/gobackup:2 perform
 ```
 
 Restore an archive encrypted as above: `openssl enc -d -aes-256-cbc -pbkdf2 -iter 10000 -in backup.tar.gz.enc | tar -xz`
 
-### Image tags
-Images are published to [Docker Hub](https://hub.docker.com/r/dreitier/gobackup) and `ghcr.io/dreitier/gobackup`.
+### Registries and tags
+Multi-arch images (`linux/amd64`, `linux/arm64`) are published to two registries with the same content and tags:
+
+| Registry                                                                                         | Image                       |
+|--------------------------------------------------------------------------------------------------|-----------------------------|
+| [Docker Hub](https://hub.docker.com/r/dreitier/gobackup)                                         | `dreitier/gobackup`         |
+| [GitHub Container Registry](https://github.com/dreitier/gobackup-docker/pkgs/container/gobackup) | `ghcr.io/dreitier/gobackup` |
+
+```bash
+docker pull dreitier/gobackup:2
+docker pull ghcr.io/dreitier/gobackup:2
+```
 
 | Tag                  | Meaning                                                              |
 |----------------------|----------------------------------------------------------------------|
-| `1.2.3`, `1.2`, `1`  | version of this image ([Semantic Versioning](https://semver.org/))    |
+| `2.1.3`, `2.1`, `2`  | version of this image ([Semantic Versioning](https://semver.org/))    |
 | `gobackup-v3.1.1`    | latest image containing this gobackup version                        |
 | `latest`             | latest release                                                       |
 
 The image has its own version. Upgrading gobackup to a new minor version is a minor release of the image, a new major version of gobackup is a major release. Base image and package updates are patch releases. The contained gobackup version is also in the label `com.dreitier.gobackup.version`.
 
-### Upgrading from the images before 1.0.0
+### Upgrading from the images before 2.0.0
 Images up to `20260514-dreitier` and the `*-huacnlee`/`*-dreitier` tags were built with gobackup 1.x/3.0 and interpolator.
 
 - The config is now mounted directly to `/etc/gobackup/gobackup.yml` instead of `/etc/gobackup/config-raw.yaml`; `${VAR}` placeholders keep working.
@@ -92,10 +104,10 @@ Images up to `20260514-dreitier` and the `*-huacnlee`/`*-dreitier` tags were bui
 - Check the [gobackup changelog](https://github.com/gobackup/gobackup/releases) for config changes between 1.x and 3.x.
 
 ### Verifying images
-Images are signed keyless with [Sigstore](https://www.sigstore.dev/); the signatures are bound to the identity of the release workflow in this repository:
+Images in both registries are signed keyless with [Sigstore](https://www.sigstore.dev/); the signatures are bound to the identity of the release workflow in this repository:
 
 ```bash
-cosign verify dreitier/gobackup:1 \
+cosign verify ghcr.io/dreitier/gobackup:2 \
   --certificate-identity "https://github.com/dreitier/gobackup-docker/.github/workflows/release.yml@refs/heads/main" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 ```
@@ -103,7 +115,8 @@ cosign verify dreitier/gobackup:1 \
 They also come with [build provenance attestations](https://docs.github.com/en/actions/security-for-github-actions/using-artifact-attestations) and an SBOM:
 
 ```bash
-gh attestation verify oci://ghcr.io/dreitier/gobackup:1 --owner dreitier
+gh attestation verify oci://ghcr.io/dreitier/gobackup:2 --owner dreitier
+gh attestation verify oci://index.docker.io/dreitier/gobackup:2 --owner dreitier
 ```
 
 The gobackup binary is downloaded from the upstream release and verified against the SHA-256 checksums pinned in the [Dockerfile](Dockerfile).
@@ -114,7 +127,7 @@ The gobackup binary is downloaded from the upstream release and verified against
 - [update-gobackup.yml](.github/workflows/update-gobackup.yml) opens a PR when a new gobackup version is released; Dependabot updates the base images, actions and release tooling.
 
 ### Creating new releases
-Releases are fully automated with [semantic-release](https://github.com/semantic-release/semantic-release). Every push to `main` runs the [release workflow](.github/workflows/release.yml): after CI passes, the next version is derived from the [Conventional Commits](https://www.conventionalcommits.org/) since the last release, `CHANGELOG.md` is updated, a GitHub release is created and the image is published.
+Releases are fully automated with [semantic-release](https://github.com/semantic-release/semantic-release). Every push to `main` runs the [release workflow](.github/workflows/release.yml): after CI passes, the next version is derived from the [Conventional Commits](https://www.conventionalcommits.org/) since the last release, `CHANGELOG.md` is updated, a GitHub release is created and the image is published to Docker Hub and GHCR.
 
 | Commit / PR title                                  | Release                   |
 |----------------------------------------------------|---------------------------|
