@@ -128,6 +128,11 @@ jobs:
               path=$(command -v "$tool") || { echo "missing: $tool" >&2; exit 1; }
               echo "$tool: $path"
             done
+            # tools used by restore scripts that run in this image
+            for tool in psql curl sed; do
+              path=$(command -v "$tool") || { echo "missing: $tool" >&2; exit 1; }
+              echo "$tool: $path"
+            done
             pg_dump --version
             mongodump --version | head -n 1'
 

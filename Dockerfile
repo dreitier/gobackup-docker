@@ -34,6 +34,8 @@ COPY mongodb.repo /etc/yum.repos.d/mongodb.repo
 
 # postgresql: client tools of Fedora's default major version (18 on Fedora 44); pg_dump must not be older
 # than the server – raise the Fedora release (or switch to a versioned postgresqlNN package) for newer servers
+# curl, sed: not used by gobackup itself, but by restore scripts running in this image (download a backup,
+# filter a SQL dump before piping it to psql); installed explicitly instead of relying on the base image
 # DL3041: distribution packages are not pinned; the image is rebuilt on every release and weekly in CI
 # hadolint ignore=DL3041
 RUN dnf install -y --setopt=install_weak_deps=False \
@@ -47,6 +49,8 @@ RUN dnf install -y --setopt=install_weak_deps=False \
       ca-certificates \
       tzdata \
       coreutils \
+      curl \
+      sed \
       tar \
       gzip \
       pigz \
