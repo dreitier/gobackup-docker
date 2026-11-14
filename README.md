@@ -9,6 +9,7 @@
 - MariaDB client (`mysqldump`, `mariadb-backup`) for MySQL and MariaDB
 - MongoDB Database Tools (`mongodump`), `redis-cli`, `sqlite3`
 - `openssl` and all supported compressors (`gzip`/`pigz`, `bzip2`, `xz`, `lzip`, `lzop`, `zstd`, `compress`)
+- `psql`, `curl` and `sed` for restore scripts that run in the same image
 
 The image is based on Fedora, runs as UID/GID `1000` and is published for `linux/amd64` and `linux/arm64`.
 
