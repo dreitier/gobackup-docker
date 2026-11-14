@@ -1,0 +1,131 @@
+name: Update gobackup
+
+# Dependabot can't track a binary downloaded from GitHub releases, so this workflow checks the latest
+# gobackup release daily and opens (or updates) a PR that sets GOBACKUP_VERSION and the checksums in the Dockerfile.
+# The PR title decides the image release: gobackup patch -> build(deps) (patch), minor -> feat, major -> feat! (breaking).
+on:
+  schedule:
+    - cron: '7 5 * * 1-5'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: gobackup release tag, e.g. v3.1.1 (default latest)
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: update-gobackup
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Update Dockerfile
+        id: update
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REQUESTED: ${{ inputs.version }}
+        run: |
+          if [[ -n "$REQUESTED" ]]; then
+            version="$REQUESTED"
+          else
+            # releases/latest skips pre-releases and drafts
+            version=$(gh api repos/gobackup/gobackup/releases/latest --jq .tag_name)
+          fi
+          if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Invalid gobackup version '${version}'"
+            exit 1
+          fi
+          current=$(sed -n 's/^ARG GOBACKUP_VERSION=//p' Dockerfile)
+
+          if [[ "$current" == "$version" ]]; then
+            echo "::notice::gobackup is already at ${version}"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ "$(printf '%s\n%s\n' "${current#v}" "${version#v}" | sort -V | tail -n 1)" != "${version#v}" ]]; then
+            echo "::notice::${version} is older than the current ${current}, nothing to do"
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          checksums=$(curl -fsSL "https://github.com/gobackup/gobackup/releases/download/${version}/gobackup_${version#v}_checksums.txt")
+          sha_of() {
+            awk -v f="gobackup-linux-$1.tar.gz" '$2 == f { print $1 }' <<< "$checksums"
+          }
+          amd64=$(sha_of amd64)
+          arm64=$(sha_of arm64)
+          if [[ ! "$amd64" =~ ^[0-9a-f]{64}$ || ! "$arm64" =~ ^[0-9a-f]{64}$ ]]; then
+            echo "::error::Could not read the checksums of ${version}"
+            exit 1
+          fi
+
+          sed -i -E \
+            -e "s/^ARG GOBACKUP_VERSION=.*/ARG GOBACKUP_VERSION=${version}/" \
+            -e "s/^ARG GOBACKUP_SHA256_AMD64=.*/ARG GOBACKUP_SHA256_AMD64=${amd64}/" \
+            -e "s/^ARG GOBACKUP_SHA256_ARM64=.*/ARG GOBACKUP_SHA256_ARM64=${arm64}/" \
+            Dockerfile
+          git diff --exit-code --quiet Dockerfile && { echo "::error::Dockerfile unchanged"; exit 1; }
+
+          IFS=. read -r cur_major cur_minor _ <<< "${current#v}"
+          IFS=. read -r new_major new_minor _ <<< "${version#v}"
+          notes="https://github.com/gobackup/gobackup/releases/tag/${version}"
+          footer=""
+          if (( new_major > cur_major )); then
+            title="feat(gobackup)!: update gobackup to ${version}"
+            footer="BREAKING CHANGE: gobackup ${version} is a new major version. Check its release notes before upgrading: ${notes}"
+          elif (( new_minor > cur_minor )); then
+            title="feat(gobackup): update gobackup to ${version}"
+          else
+            title="build(deps): update gobackup to ${version}"
+          fi
+
+          {
+            echo "changed=true"
+            echo "title=${title}"
+            echo "body<<EOF_BODY"
+            echo "Updates gobackup from ${current} to ${version}."
+            echo
+            echo "Release notes: ${notes}"
+            if [[ -n "$footer" ]]; then
+              echo
+              echo "$footer"
+            fi
+            echo "EOF_BODY"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create GitHub App token
+        if: steps.update.outputs.changed == 'true'
+        id: app
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      # PRs created with the app token (unlike GITHUB_TOKEN) trigger the CI workflow.
+      # A fixed branch means a newer gobackup release updates the open PR instead of opening a second one.
+      - name: Create or update pull request
+        if: steps.update.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1 # v8.1.1
+        with:
+          token: ${{ steps.app.outputs.token }}
+          sign-commits: true
+          branch: update/gobackup
+          delete-branch: true
+          add-paths: Dockerfile
+          commit-message: |
+            ${{ steps.update.outputs.title }}
+
+            ${{ steps.update.outputs.body }}
+          title: ${{ steps.update.outputs.title }}
+          body: ${{ steps.update.outputs.body }}

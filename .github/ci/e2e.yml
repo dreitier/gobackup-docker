@@ -1,0 +1,28 @@
+# gobackup config for the end-to-end test in .github/workflows/ci.yml
+models:
+  e2e:
+    schedule:
+      cron: "0 3 * * *"
+    compress_with:
+      type: tgz
+    encrypt_with:
+      type: openssl
+      password: ${ENCRYPTION_PASSWORD}
+      # stronger key derivation; decrypt with `openssl enc -d -aes-256-cbc -pbkdf2 -iter 10000`
+      args: -pbkdf2 -iter 10000
+    archive:
+      includes:
+        - /data
+    databases:
+      shop:
+        type: postgresql
+        host: localhost
+        port: 5432
+        database: shop
+        username: gobackup
+        password: ${PG_PASSWORD}
+    storages:
+      local:
+        type: local
+        path: /backups
+        keep: 3
