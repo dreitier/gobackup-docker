@@ -24,7 +24,7 @@ RUN case "${TARGETARCH}" in \
 # Runtime image: gobackup plus the client tools it shells out to (dump tools, compressors, openssl).
 # Fedora instead of Alpine: current PostgreSQL client from Fedora itself (PGDG has no Fedora aarch64 packages),
 # MongoDB ships RHEL packages that work on Fedora.
-FROM fedora:44
+FROM fedora:45
 
 LABEL org.opencontainers.image.source="https://github.com/dreitier/gobackup-docker" \
       org.opencontainers.image.description="gobackup with database client tools (PostgreSQL, MySQL/MariaDB, MongoDB, Redis, SQLite)" \
