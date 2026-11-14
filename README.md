@@ -5,7 +5,7 @@
 
 [gobackup](https://github.com/gobackup/gobackup) dumps databases and archives folders, then compresses, encrypts and stores the backup in local folders, S3, SFTP, WebDAV and many other storages. The upstream project only publishes the binary; this image adds the client tools gobackup calls, so it can run in Docker or Kubernetes:
 
-- PostgreSQL client (`pg_dump`, `pg_dumpall`) from [PGDG](https://www.postgresql.org/download/linux/redhat/), currently version 18
+- PostgreSQL client (`pg_dump`, `pg_dumpall`) from Fedora, currently version 18
 - MariaDB client (`mysqldump`, `mariadb-backup`) for MySQL and MariaDB
 - MongoDB Database Tools (`mongodump`), `redis-cli`, `sqlite3`
 - `openssl` and all supported compressors (`gzip`/`pigz`, `bzip2`, `xz`, `lzip`, `lzop`, `zstd`, `compress`)

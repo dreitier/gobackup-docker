@@ -22,11 +22,9 @@ RUN case "${TARGETARCH}" in \
     && tar -xzf gobackup.tar.gz gobackup
 
 # Runtime image: gobackup plus the client tools it shells out to (dump tools, compressors, openssl).
-# Fedora instead of Alpine because PostgreSQL (PGDG) and MongoDB ship current client packages for it.
+# Fedora instead of Alpine: current PostgreSQL client from Fedora itself (PGDG has no Fedora aarch64 packages),
+# MongoDB ships RHEL packages that work on Fedora.
 FROM fedora:44
-
-# major version of the PostgreSQL client tools; pg_dump must not be older than the server
-ARG PG_MAJOR=18
 
 LABEL org.opencontainers.image.source="https://github.com/dreitier/gobackup-docker" \
       org.opencontainers.image.description="gobackup with database client tools (PostgreSQL, MySQL/MariaDB, MongoDB, Redis, SQLite)" \
@@ -34,12 +32,12 @@ LABEL org.opencontainers.image.source="https://github.com/dreitier/gobackup-dock
 
 COPY mongodb.repo /etc/yum.repos.d/mongodb.repo
 
+# postgresql: client tools of Fedora's default major version (18 on Fedora 44); pg_dump must not be older
+# than the server – raise the Fedora release (or switch to a versioned postgresqlNN package) for newer servers
 # DL3041: distribution packages are not pinned; the image is rebuilt on every release and weekly in CI
 # hadolint ignore=DL3041
 RUN dnf install -y --setopt=install_weak_deps=False \
-      "https://download.postgresql.org/pub/repos/yum/reporpms/F-$(rpm -E %fedora)-$(uname -m)/pgdg-fedora-repo-latest.noarch.rpm" \
-    && dnf install -y --setopt=install_weak_deps=False \
-      "postgresql${PG_MAJOR}" \
+      postgresql \
       mariadb \
       mariadb-backup \
       mongodb-database-tools \
@@ -63,8 +61,7 @@ RUN dnf install -y --setopt=install_weak_deps=False \
 
 # gobackup keeps its state (retention/cycler data, log, pid) in $GOBACKUP_DIR; mount a volume there,
 # otherwise `keep:` can't remove old backups after a container restart.
-ENV PATH="/usr/pgsql-${PG_MAJOR}/bin:${PATH}" \
-    HOME=/var/gobackup \
+ENV HOME=/var/gobackup \
     GOBACKUP_DIR=/var/gobackup/.gobackup
 
 RUN groupadd -g 1000 gobackup \
