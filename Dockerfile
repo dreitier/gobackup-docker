@@ -6,7 +6,7 @@
 # The build stages run on the build platform and cross-compile; only the runtime image needs emulation.
 
 # gobackup source and all modules from the Go module proxy, verified against gobackup/go.sum
-FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS source
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine@sha256:70bd7ddea8b6cbe5d6943cde279d6b67feb10cc924fb9100d1d8757c1575b280 AS source
 
 # never download another Go toolchain; the image must satisfy the go directive in gobackup/go.mod
 ENV GOTOOLCHAIN=local
@@ -17,7 +17,7 @@ RUN go mod download \
     && chmod -R u+w /src
 
 # web UI, embedded into the binary (upstream builds it before `go build` as well, it's not in the Go module)
-FROM --platform=$BUILDPLATFORM node:24-alpine AS web
+FROM --platform=$BUILDPLATFORM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS web
 
 # upstream maintains yarn.lock (its package-lock.json is out of date and fails `npm ci`);
 # yarn 1 via corepack, pinned by version and hash
@@ -51,7 +51,7 @@ RUN go mod edit -replace github.com/gobackup/gobackup=/src \
 # Runtime image: gobackup plus the client tools it shells out to (dump tools, compressors, openssl).
 # Fedora instead of Alpine: current PostgreSQL client from Fedora itself (PGDG has no Fedora aarch64 packages),
 # MongoDB ships RHEL packages that work on Fedora.
-FROM fedora:45
+FROM fedora:45@sha256:a7d72ba2745b100a3351087472e5ee7b2450af7cf331e7673007e3817612839c
 
 LABEL org.opencontainers.image.source="https://github.com/dreitier/gobackup-docker" \
       org.opencontainers.image.description="gobackup with database client tools (PostgreSQL, MySQL/MariaDB, MongoDB, Redis, SQLite)" \
