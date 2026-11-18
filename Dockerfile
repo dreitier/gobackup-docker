@@ -19,18 +19,24 @@ RUN go mod download \
 # web UI, embedded into the binary (upstream builds it before `go build` as well, it's not in the Go module)
 FROM --platform=$BUILDPLATFORM node:24-alpine@sha256:116b800c3754b440ee0aa3ed2f20f5bf3d99a554bfd9adeea09ea8017f6e85f5 AS web
 
-# upstream maintains yarn.lock (its package-lock.json is out of date and fails `npm ci`);
-# yarn 1 via corepack, pinned by version and hash
-ARG YARN=yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e
-ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+# upstream maintains yarn.lock (its package-lock.json is out of date and fails `npm ci`).
+# yarn 1 from the npm registry, verified by SHA-512 (dist.integrity of the package) – not via corepack,
+# which Node.js no longer ships since version 25
+ARG YARN_VERSION=1.22.22
+ARG YARN_SHA512=a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e
+SHELL ["/bin/ash", "-eo", "pipefail", "-c"]
 WORKDIR /src/web
 COPY --from=source /src/web ./
 # git: yarn.lock pins one dependency (react-virtualized-fixed-import) to a GitHub commit
 # DL3018: build-only tool, not part of the published image
 # hadolint ignore=DL3018
 RUN apk add --no-cache git \
-    && corepack "${YARN}" install --frozen-lockfile --non-interactive --no-progress \
-    && corepack "${YARN}" build
+    && wget -q -O /tmp/yarn.tgz "https://registry.npmjs.org/yarn/-/yarn-${YARN_VERSION}.tgz" \
+    && echo "${YARN_SHA512}  /tmp/yarn.tgz" | sha512sum -c - \
+    && mkdir /opt/yarn \
+    && tar -xzf /tmp/yarn.tgz -C /opt/yarn --strip-components=1 \
+    && node /opt/yarn/bin/yarn.js install --frozen-lockfile --non-interactive --no-progress \
+    && node /opt/yarn/bin/yarn.js build
 
 FROM source AS build
 
