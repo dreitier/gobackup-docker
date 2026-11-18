@@ -43,6 +43,21 @@ jobs:
           ACTIONLINT_VERSION: ${{ steps.versions.outputs.actionlint }}
         run: docker run --rm -v "$PWD:/repo" --workdir /repo "rhysd/actionlint:${ACTIONLINT_VERSION}" -color
 
+      # gobackup/go.mod pins gobackup by commit; it must be the commit of the release in ARG GOBACKUP_VERSION
+      - name: gobackup commit matches GOBACKUP_VERSION
+        if: ${{ !cancelled() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(sed -n 's/^ARG GOBACKUP_VERSION=//p' Dockerfile)
+          pinned=$(awk '$1 == "github.com/gobackup/gobackup" { print $2 }' gobackup/go.mod)
+          expected=$(gh api "repos/gobackup/gobackup/commits/${version}" --jq .sha)
+          if [[ -z "$pinned" || "${pinned##*-}" != "${expected:0:12}" ]]; then
+            echo "::error file=gobackup/go.mod::gobackup/go.mod pins '${pinned}', but ${version} is commit ${expected:0:12}; run the update-gobackup workflow"
+            exit 1
+          fi
+          echo "gobackup ${version} = ${pinned}"
+
       - name: Lint Dockerfile
         if: ${{ !cancelled() }}
         uses: hadolint/hadolint-action@06be81baf89a55ffd0e24b8f04a4185738dd3387 # v3.5.0
@@ -119,7 +134,9 @@ jobs:
         run: |
           # the image must not run as root
           test "$(docker inspect --format '{{.Config.User}}' gobackup:ci)" = "1000:1000"
-          docker run --rm gobackup:ci --version
+          # built from source: the version is set via ldflags from ARG GOBACKUP_VERSION
+          version=$(sed -n 's/^ARG GOBACKUP_VERSION=//p' Dockerfile)
+          docker run --rm gobackup:ci --version | tee /dev/stderr | grep -qx "gobackup version ${version#v}"
           # every tool gobackup shells out to for the supported databases, compressors and the openssl encryptor
           docker run --rm --entrypoint /bin/sh gobackup:ci -c '
             set -e
@@ -191,7 +208,8 @@ jobs:
           output: trivy.sarif
           severity: CRITICAL,HIGH
           ignore-unfixed: true
-          # reporting only (Security tab); the findings are in Fedora packages and the upstream gobackup binary
+          # reporting only (Security tab); gobackup's Go dependencies are kept current by Dependabot,
+          # remaining findings are mostly in Fedora packages (e.g. the MongoDB tools)
           exit-code: '0'
 
       - name: Upload Trivy results

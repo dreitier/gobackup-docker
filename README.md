@@ -120,12 +120,13 @@ gh attestation verify oci://ghcr.io/dreitier/gobackup:2 --owner dreitier
 gh attestation verify oci://index.docker.io/dreitier/gobackup:2 --owner dreitier
 ```
 
-The gobackup binary is downloaded from the upstream release and verified against the SHA-256 checksums pinned in the [Dockerfile](Dockerfile).
+gobackup is built from source (including its web UI) with current dependencies: [gobackup/go.mod](gobackup/go.mod) pins the gobackup release commit and the versions of all Go modules, which are downloaded from the Go module proxy and verified against [gobackup/go.sum](gobackup/go.sum). The upstream release binaries are built with an old Go and outdated dependencies.
 
 ## Development
 - `make build` builds the image locally, `make lint` runs the pre-commit hooks (actionlint, hadolint), `make hooks` installs them.
 - CI ([ci.yml](.github/workflows/ci.yml)) builds the multi-arch image, checks that all client tools are present, runs an end-to-end backup (PostgreSQL dump + folder archive, compressed, encrypted, stored locally, then decrypted and checked), checks that `run` stays in the foreground and scans the image with Trivy.
-- [update-gobackup.yml](.github/workflows/update-gobackup.yml) opens a PR when a new gobackup version is released; Dependabot updates the base images, actions and release tooling.
+- [update-gobackup.yml](.github/workflows/update-gobackup.yml) opens a PR when a new gobackup version is released (pins its commit in `gobackup/go.mod` and sets `GOBACKUP_VERSION` in the Dockerfile); Dependabot updates gobackup's Go dependencies, the base images, actions and release tooling. Upstream's Go module path has no `/v3` suffix, so Dependabot can't track gobackup itself.
+- After changing `gobackup/go.mod` by hand, run `go mod tidy` in `gobackup/`.
 
 ### Creating new releases
 Releases are fully automated with [semantic-release](https://github.com/semantic-release/semantic-release). Every push to `main` runs the [release workflow](.github/workflows/release.yml): after CI passes, the next version is derived from the [Conventional Commits](https://www.conventionalcommits.org/) since the last release, `CHANGELOG.md` is updated, a GitHub release is created and the image is published to Docker Hub and GHCR.

@@ -1,3 +1,5 @@
-# the build context only needs mongodb.repo
+# the build context only needs mongodb.repo and the Go module that pins gobackup and its dependencies
 *
 !mongodb.repo
+!gobackup/go.mod
+!gobackup/go.sum
