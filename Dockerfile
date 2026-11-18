@@ -19,10 +19,14 @@ RUN go mod download \
 # web UI, embedded into the binary (upstream builds it before `go build` as well, it's not in the Go module)
 FROM --platform=$BUILDPLATFORM node:24-alpine AS web
 
+# upstream maintains yarn.lock (its package-lock.json is out of date and fails `npm ci`);
+# yarn 1 via corepack, pinned by version and hash
+ARG YARN=yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7acf00f6b133b7ac24255f2652fa22ae3534329dc6180534e98d17432037ff6fd140556e2bb3137e
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 WORKDIR /src/web
 COPY --from=source /src/web ./
-RUN npm ci --no-audit --no-fund \
-    && npm run build
+RUN corepack "${YARN}" install --frozen-lockfile --non-interactive --no-progress \
+    && corepack "${YARN}" build
 
 FROM source AS build
 
