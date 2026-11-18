@@ -1,25 +1,44 @@
 # syntax=docker/dockerfile:1
 
-# Downloads the official gobackup release binary (static, CGO disabled) and verifies its checksum.
-# Runs on the build platform; only the download depends on the target platform.
-FROM --platform=$BUILDPLATFORM alpine:3.24 AS gobackup
+# gobackup is built from source instead of using the upstream release binary, which is built with an old Go
+# and outdated dependencies. gobackup/go.mod pins the gobackup commit (updated together with GOBACKUP_VERSION
+# by .github/workflows/update-gobackup.yml) and the versions of all dependencies (updated by Dependabot).
+# The build stages run on the build platform and cross-compile; only the runtime image needs emulation.
 
+# gobackup source and all modules from the Go module proxy, verified against gobackup/go.sum
+FROM --platform=$BUILDPLATFORM golang:1.27-alpine AS source
+
+# never download another Go toolchain; the image must satisfy the go directive in gobackup/go.mod
+ENV GOTOOLCHAIN=local
+WORKDIR /build
+COPY gobackup/go.mod gobackup/go.sum ./
+RUN go mod download \
+    && cp -R "$(go list -m -f '{{.Dir}}' github.com/gobackup/gobackup)" /src \
+    && chmod -R u+w /src
+
+# web UI, embedded into the binary (upstream builds it before `go build` as well, it's not in the Go module)
+FROM --platform=$BUILDPLATFORM node:24-alpine AS web
+
+WORKDIR /src/web
+COPY --from=source /src/web ./
+RUN npm ci --no-audit --no-fund \
+    && npm run build
+
+FROM source AS build
+
+ARG TARGETOS
 ARG TARGETARCH
-# updated by .github/workflows/update-gobackup.yml, checksums from gobackup_<version>_checksums.txt of the release
+# release tag of the commit pinned in gobackup/go.mod; updated by .github/workflows/update-gobackup.yml,
+# read by the release workflow for the image tag gobackup-vX.Y.Z and the label com.dreitier.gobackup.version
 ARG GOBACKUP_VERSION=v3.1.1
-ARG GOBACKUP_SHA256_AMD64=d4ec264c2f266742aa370e90a1666535917de0207bd908786823415fce4924c6
-ARG GOBACKUP_SHA256_ARM64=517eda21d4e56e0faa0e15c110d395d83fe987bfce26eaab81cee81fe55ff9f8
 
-SHELL ["/bin/ash", "-euo", "pipefail", "-c"]
-WORKDIR /download
-RUN case "${TARGETARCH}" in \
-      amd64) sha256="${GOBACKUP_SHA256_AMD64}" ;; \
-      arm64) sha256="${GOBACKUP_SHA256_ARM64}" ;; \
-      *) echo "unsupported architecture: ${TARGETARCH}" >&2; exit 1 ;; \
-    esac \
-    && wget -q -O gobackup.tar.gz "https://github.com/gobackup/gobackup/releases/download/${GOBACKUP_VERSION}/gobackup-linux-${TARGETARCH}.tar.gz" \
-    && echo "${sha256}  gobackup.tar.gz" | sha256sum -c - \
-    && tar -xzf gobackup.tar.gz gobackup
+COPY --from=web /src/web/dist /src/web/dist
+# build gobackup from the copy that contains the web UI, with the dependency versions of gobackup/go.mod;
+# same flags as upstream's goreleaser config (version without the leading v)
+RUN go mod edit -replace github.com/gobackup/gobackup=/src \
+    && CGO_ENABLED=0 GOOS="${TARGETOS}" GOARCH="${TARGETARCH}" \
+       go build -mod=readonly -trimpath -ldflags "-s -w -X main.version=${GOBACKUP_VERSION#v}" \
+         -o /out/gobackup github.com/gobackup/gobackup
 
 # Runtime image: gobackup plus the client tools it shells out to (dump tools, compressors, openssl).
 # Fedora instead of Alpine: current PostgreSQL client from Fedora itself (PGDG has no Fedora aarch64 packages),
@@ -73,7 +92,7 @@ RUN groupadd -g 1000 gobackup \
     && mkdir -p /etc/gobackup /var/gobackup/.gobackup \
     && chown gobackup:gobackup /var/gobackup/.gobackup
 
-COPY --from=gobackup /download/gobackup /usr/local/bin/gobackup
+COPY --from=build /out/gobackup /usr/local/bin/gobackup
 
 USER 1000:1000
 WORKDIR /var/gobackup

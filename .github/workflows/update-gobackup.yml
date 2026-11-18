@@ -1,7 +1,9 @@
 name: Update gobackup
 
-# Dependabot can't track a binary downloaded from GitHub releases, so this workflow checks the latest
-# gobackup release daily and opens (or updates) a PR that sets GOBACKUP_VERSION and the checksums in the Dockerfile.
+# gobackup is built from source with the dependency versions of gobackup/go.mod. Dependabot keeps the dependencies
+# current, but can't track gobackup itself: upstream's module path has no /v3 suffix, so its releases can only be
+# required by commit (pseudo-version). This workflow checks the latest gobackup release daily and opens (or updates)
+# a PR that pins the release commit in gobackup/go.mod and sets GOBACKUP_VERSION in the Dockerfile.
 # The PR title decides the image release: gobackup patch -> build(deps) (patch), minor -> feat, major -> feat! (breaking).
 on:
   schedule:
@@ -28,11 +30,13 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Update Dockerfile
+      - name: Update gobackup
         id: update
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REQUESTED: ${{ inputs.version }}
+          # the runner's Go downloads the toolchain required by the go directive in gobackup/go.mod
+          GOTOOLCHAIN: auto
         run: |
           if [[ -n "$REQUESTED" ]]; then
             version="$REQUESTED"
@@ -57,23 +61,31 @@ jobs:
             exit 0
           fi
 
-          checksums=$(curl -fsSL "https://github.com/gobackup/gobackup/releases/download/${version}/gobackup_${version#v}_checksums.txt")
-          sha_of() {
-            awk -v f="gobackup-linux-$1.tar.gz" '$2 == f { print $1 }' <<< "$checksums"
-          }
-          amd64=$(sha_of amd64)
-          arm64=$(sha_of arm64)
-          if [[ ! "$amd64" =~ ^[0-9a-f]{64}$ || ! "$arm64" =~ ^[0-9a-f]{64}$ ]]; then
-            echo "::error::Could not read the checksums of ${version}"
+          # commit of the release tag (works for lightweight and annotated tags)
+          commit=$(gh api "repos/gobackup/gobackup/commits/${version}" --jq .sha)
+          if [[ ! "$commit" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "::error::Could not resolve the commit of ${version}"
             exit 1
           fi
 
-          sed -i -E \
-            -e "s/^ARG GOBACKUP_VERSION=.*/ARG GOBACKUP_VERSION=${version}/" \
-            -e "s/^ARG GOBACKUP_SHA256_AMD64=.*/ARG GOBACKUP_SHA256_AMD64=${amd64}/" \
-            -e "s/^ARG GOBACKUP_SHA256_ARM64=.*/ARG GOBACKUP_SHA256_ARM64=${arm64}/" \
-            Dockerfile
+          # downloads are verified against the Go checksum database
+          (
+            cd gobackup
+            go get "github.com/gobackup/gobackup@${commit}"
+            go mod tidy
+          )
+          sed -i -E "s/^ARG GOBACKUP_VERSION=.*/ARG GOBACKUP_VERSION=${version}/" Dockerfile
           git diff --exit-code --quiet Dockerfile && { echo "::error::Dockerfile unchanged"; exit 1; }
+
+          # replace directives of dependencies are ignored, so gobackup/go.mod copies upstream's; flag changes
+          upstream_replace=$(gh api "repos/gobackup/gobackup/contents/go.mod?ref=${commit}" --jq .content \
+            | base64 -d | grep -E '^replace |=>' | sed -E 's/^replace //; s/^[[:space:]]+//' | sort || true)
+          local_replace=$(sed -n 's/^replace //p' gobackup/go.mod | sort)
+          replace_note=""
+          if [[ "$upstream_replace" != "$local_replace" ]]; then
+            echo "::warning::gobackup ${version} has different replace directives than gobackup/go.mod"
+            replace_note="**Check the replace directives:** gobackup ${version} has"$'\n\n```\n'"${upstream_replace:-(none)}"$'\n```\n\n'"but gobackup/go.mod has"$'\n\n```\n'"${local_replace:-(none)}"$'\n```'
+          fi
 
           IFS=. read -r cur_major cur_minor _ <<< "${current#v}"
           IFS=. read -r new_major new_minor _ <<< "${version#v}"
@@ -92,9 +104,13 @@ jobs:
             echo "changed=true"
             echo "title=${title}"
             echo "body<<EOF_BODY"
-            echo "Updates gobackup from ${current} to ${version}."
+            echo "Updates gobackup from ${current} to ${version} (commit ${commit})."
             echo
             echo "Release notes: ${notes}"
+            if [[ -n "$replace_note" ]]; then
+              echo
+              echo "$replace_note"
+            fi
             if [[ -n "$footer" ]]; then
               echo
               echo "$footer"
@@ -122,7 +138,10 @@ jobs:
           sign-commits: true
           branch: update/gobackup
           delete-branch: true
-          add-paths: Dockerfile
+          add-paths: |
+            Dockerfile
+            gobackup/go.mod
+            gobackup/go.sum
           commit-message: |
             ${{ steps.update.outputs.title }}
 
