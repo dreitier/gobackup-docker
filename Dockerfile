@@ -25,7 +25,11 @@ ARG YARN=yarn@1.22.22+sha512.a6b2f7906b721bba3d67d4aff083df04dad64c399707841b7ac
 ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
 WORKDIR /src/web
 COPY --from=source /src/web ./
-RUN corepack "${YARN}" install --frozen-lockfile --non-interactive --no-progress \
+# git: yarn.lock pins one dependency (react-virtualized-fixed-import) to a GitHub commit
+# DL3018: build-only tool, not part of the published image
+# hadolint ignore=DL3018
+RUN apk add --no-cache git \
+    && corepack "${YARN}" install --frozen-lockfile --non-interactive --no-progress \
     && corepack "${YARN}" build
 
 FROM source AS build
