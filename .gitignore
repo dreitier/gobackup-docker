@@ -1,5 +1,4 @@
 .idea/
-node_modules/
 # local test configs may contain credentials
 gobackup.yml
 gobackup.yaml
