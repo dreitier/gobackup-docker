@@ -132,7 +132,7 @@ jobs:
       # keyless Sigstore signatures (GitHub OIDC identity of this workflow), verifiable with `cosign verify`;
       # the provenance comes from actions/attest-build-provenance below
       - name: Sign images
-        uses: dreitier/shared-ci-components/cosign-sign@eec1480693feee5edb0272c24f63a398bee80108 # v1.0.0
+        uses: dreitier/shared-ci-components/cosign-sign@c8ebf58b2404cb3f7307c155525c68abfe1fc580 # v1.1.0
         with:
           images: |
             index.docker.io/dreitier/gobackup
@@ -164,12 +164,12 @@ jobs:
     steps:
       - name: Generate SBOM
         id: sbom
-        uses: dreitier/shared-ci-components/sbom@eec1480693feee5edb0272c24f63a398bee80108 # v1.0.0
+        uses: dreitier/shared-ci-components/sbom@c8ebf58b2404cb3f7307c155525c68abfe1fc580 # v1.1.0
         with:
           image: ghcr.io/dreitier/gobackup@${{ needs.image.outputs.digest }}
 
       - name: Upload to Dependency-Track
-        uses: dreitier/shared-ci-components/dependency-track-upload@eec1480693feee5edb0272c24f63a398bee80108 # v1.0.0
+        uses: dreitier/shared-ci-components/dependency-track-upload@c8ebf58b2404cb3f7307c155525c68abfe1fc580 # v1.1.0
         with:
           api-key: ${{ secrets.DEPENDENCYTRACK_API_KEY }}
           bom: ${{ steps.sbom.outputs.file }}
